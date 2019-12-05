@@ -108,17 +108,43 @@ app = Flask(__name__)
 node_identifier = str(uuid4()).replace('-', '')
 # Instantiate the Blockchain
 blockchain = Blockchain()
-@app.route('/mine', methods=['GET'])
+@app.route('/mine', methods=['POST'])
 def mine():
-    # Run the proof of work algorithm to get the next proof
-    proof = blockchain.proof_of_work(blockchain.last_block)
-    # Forge the new Block by adding it to the chain with the proof
-    previous_hash = blockchain.hash(blockchain.last_block)
-    new_block = blockchain.new_block(proof, previous_hash)
-    response = {
-        'block': new_block
-    }
-    return jsonify(response), 200
+
+    # Handle non-json response
+    try:
+        values = request.get_json()
+    except ValueError:
+        print("Error:  Non-json response")
+        print("Response returned:")
+        print(r)
+        return "Error"
+
+    required = ['proof', 'id']
+    if not all(k in values for k in required):
+        response = {'message': "missing values."}
+        return jsonify(response), 400
+
+    submitted_proof = values['proof']
+
+    # determine if proof is valid
+    last_block = blockchain.last_block
+    last_block_string = json.dumps(last_block, sort_keys=True)
+    if blockchain.valid_proof(last_block_string, submitted_proof):
+
+        # Forge the new Block by adding it to the chain with the proof
+        previous_hash = blockchain.hash(blockchain.last_block)
+        new_block = blockchain.new_block(submitted_proof, previous_hash)
+        response = {
+            'message': "New Block forged",
+            'block': new_block
+        }
+        return jsonify(response), 200
+    else:
+        response = {
+            'message': "Proof invalid or already submitted"
+        }
+        return jsonify(response), 200
 
 
 @app.route('/chain', methods=['GET'])
